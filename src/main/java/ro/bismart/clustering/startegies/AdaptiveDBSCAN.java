@@ -2,9 +2,12 @@ package ro.bismart.clustering.startegies;
 
 import ro.bismart.clustering.model.Cluster;
 import ro.bismart.clustering.model.MatrixProperties;
+import ro.bismart.clustering.util.IODevice;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
+import java.util.TreeSet;
 import java.util.logging.Logger;
 
 /**
@@ -13,6 +16,15 @@ import java.util.logging.Logger;
 public class AdaptiveDBSCAN implements ClusteringStrategy{
     private static final Logger LOG = Logger.getLogger("AdaptiveDBSCAN");
     private static final int MAX_CLUSTER_SIZE = 5;
+    private double[][] fitMatrix = null;
+
+    public double[][] getFitMatrix() {
+        return fitMatrix;
+    }
+
+    public void setFitMatrix(double[][] fitMatrix) {
+        this.fitMatrix = fitMatrix;
+    }
 
     @Override
     public List<Cluster> createClusters(double[][] distanceMatrix) {
@@ -36,10 +48,11 @@ public class AdaptiveDBSCAN implements ClusteringStrategy{
         Cluster noiseCluster = new Cluster();
 
         for (int i = 0; i < clusters.size(); i++) {
-
+            Cluster c = clusters.get(i);
+            IODevice.writeClusterInsideDistance(c, Math.toIntExact(c.getId()) + "-initial", distanceMatrix);
             if (clusters.get(i).getName().equals("noise")) {
                 noiseCluster = clusters.remove(i);
-                break;
+                --i;
             }
         }
         if (!noiseCluster.getName().equals("noise")) {
@@ -55,12 +68,10 @@ public class AdaptiveDBSCAN implements ClusteringStrategy{
                 if (!clusters.isEmpty()) {
                     clusters.add(c);
                     continue;
-                }else{
-                    stop = false;
                 }
             }
 
-            if (c.getPoints().size() > MAX_CLUSTER_SIZE && !stop) {
+            if (!fit(c, distanceMatrix) && !stop) {
                 LOG.info(String.format("Breaking Cluster [%d-%s]\tSize [%d]:", c.getId(), c.getName(), c.getPoints().size()));
                 if(oldSize != c.getPoints().size()) {
                     oldSize = c.getPoints().size();
@@ -95,24 +106,101 @@ public class AdaptiveDBSCAN implements ClusteringStrategy{
         return result;
 
     }
-    private static List<Cluster> breakCluster(Cluster c, double[][] distanceMatrix) {
+
+    private boolean fit(Cluster c, double[][] distanceMatrix) {
+        //return c.getPoints().size() > MAX_CLUSTER_SIZE;
+        double[][] fMatrix = distanceMatrix;
+        if(fitMatrix != null){
+            fMatrix = fitMatrix;
+        }
+        double max = Double.NEGATIVE_INFINITY;
+        double min = Double.POSITIVE_INFINITY;
         double avg = 0;
         int total = 0;
-        double min = Double.MAX_VALUE;
-        for(Integer i : c.getPoints()){
-            for(Integer j : c.getPoints()) {
-                if(i.equals(j))
-                    continue;
-
-                if(min > distanceMatrix[i][j])
-                    min = distanceMatrix[i][j];
-                avg += distanceMatrix[i][j];
+        List<Integer> ps = c.getPoints();
+        Set<Double> distances = new TreeSet<>();
+        for(int ii = 0; ii < ps.size() - 1; ii++){
+            int i = ps.get(ii);
+            for(int jj = ii + 1; jj < ps.size(); jj++) {
+                int j = ps.get(jj);
+                if (max < fMatrix[i][j])
+                    max = fMatrix[i][j];
+                if (min > fMatrix[i][j])
+                    min = fMatrix[i][j];
+                avg += fMatrix[i][j];
+                distances.add(fMatrix[i][j]);
                 total++;
             }
         }
+
         avg /= total;
-        double eps = (avg + 2*min) / 3;
+        if(distances.size() < 1){
+            return true;
+        }
+        List<Double> d = new ArrayList<>(distances);
+        double median = d.get(d.size() / 2);
+
+
+        double medDistance = 0;
+        double avgDistance = 0;
+        for(int i = 0; i < d.size(); i++){
+            medDistance += Math.abs(d.get(i) - median);
+            avgDistance += Math.abs(d.get(i) - avg);
+        }
+
+
+        double medfitness = Math.abs((max - medDistance + 1) / (medDistance - min + 1));
+        double avgfitness = Math.abs((max - avgDistance + 1) / (avgDistance - min + 1));
+        double pCADM = 100 * medDistance / max;
+        double pCADA = 100 * avgDistance / max;
+        LOG.info(String.format("Avg: %.4f\tMedian: %.4f\tMax: %.4f\tMin: %.4f\tCADM: %.4f\tCADA: %.4f\n", avg , median, max, min, pCADM, pCADA));
+
+        return pCADM < 100 &&  pCADA < 100;
+
+    }
+
+    private List<Cluster> breakCluster(Cluster c, double[][] distanceMatrix) {
+        double norm = Double.NEGATIVE_INFINITY;
+        double min = Double.POSITIVE_INFINITY;
+        double avg = 0;
+        int total = 0;
+        List<Integer> ps = c.getPoints();
+        Set<Double> distances = new TreeSet<>();
+        double minAVg = Double.NEGATIVE_INFINITY;
+        double[][] fMatrix = distanceMatrix;
+        if(fitMatrix != null){
+            fMatrix = fitMatrix;
+        }
+        for(int ii = 0; ii < ps.size() - 1; ii++){
+            int i = ps.get(ii);
+            double minRow = Double.POSITIVE_INFINITY;
+            for(int jj = 0; jj < ps.size(); jj++) {
+                int j = ps.get(jj);
+                if(i == j)
+                    continue;
+                if (norm < fMatrix[i][j])
+                    norm = fMatrix[i][j];
+                if (min > fMatrix[i][j])
+                    min = fMatrix[i][j];
+                if(minRow > fMatrix[i][j])
+                    minRow = fMatrix[i][j];
+                avg += fMatrix[i][j];
+                total++;
+            }
+            distances.add(minRow);
+            if(minAVg < minRow)
+                minAVg = minRow;
+        }
+//        minAVg /= ps.size();
+
+        avg /= total;
+        List<Double> d = new ArrayList<>(distances);
+        double median = d.get(d.size() / 2);
+        LOG.info(String.format("Avg: %.4f\tMedian: %.4f\tMax: %.4f\tMin: %.4f\n", avg , median, norm, min));
+
+//        norm = Math.abs((median - min) + (norm - median)) / norm;
+        double eps = (median+2*min)/3;
         DBSCANClusteringStrategy dbScan = new DBSCANClusteringStrategy(eps, 2);
-        return dbScan.createClusters(distanceMatrix, c.getPoints());
+        return dbScan.createClusters(fMatrix, c.getPoints());
     }
 }

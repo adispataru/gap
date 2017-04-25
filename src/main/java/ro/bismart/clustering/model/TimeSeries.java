@@ -1,5 +1,6 @@
 package ro.bismart.clustering.model;
 
+import java.util.Arrays;
 import java.util.Date;
 import java.util.concurrent.TimeUnit;
 
@@ -10,8 +11,19 @@ public class TimeSeries {
     private Date start;
     private long step;
     private TimeUnit timeUnit;
-    private Double[] data;
+    private double[] data;
     private String name;
+
+    public static TimeSeries createBlankTimeSeries(Date start, long step, TimeUnit timeUnit, String name, int len){
+        TimeSeries t = new TimeSeries();
+        t.setStart(start);
+        t.setStep(step);
+        t.setTimeUnit(timeUnit);
+        t.setName(name);
+        double[] blankData = new double[len];
+        t.setData(blankData);
+        return t;
+    }
 
     public TimeSeries(){
 
@@ -41,11 +53,11 @@ public class TimeSeries {
         this.timeUnit = timeUnit;
     }
 
-    public Double[] getData() {
+    public double[] getData() {
         return data;
     }
 
-    public void setData(Double[] data) {
+    public void setData(double[] data) {
         this.data = data;
     }
 
@@ -55,5 +67,19 @@ public class TimeSeries {
 
     public void setName(String name) {
         this.name = name;
+    }
+
+    public void addData(double[] newData){
+        double[] temp = new double[this.data.length + newData.length];
+        System.arraycopy(this.data, 0, temp, 0, this.data.length);
+        System.arraycopy(newData, 0, temp, this.data.length, newData.length);
+        this.data = temp;
+    }
+
+    public TimeSeries clone(){
+        TimeSeries ts = createBlankTimeSeries(this.getStart(), this.step, this.getTimeUnit(), this.name, this.data.length);
+        System.arraycopy(this.data, 0, ts.getData(), 0, this.data.length);
+        return ts;
+
     }
 }

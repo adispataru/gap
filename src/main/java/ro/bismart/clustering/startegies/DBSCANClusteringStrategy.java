@@ -37,7 +37,7 @@ public class DBSCANClusteringStrategy implements ClusteringStrategy {
             points.add(i);
         }
         List<Cluster> result = dbScanMatrix(distanceMatrix, points);
-        LOG.info("Created " + result.size() + "clusters");
+        LOG.info("Created " + result.size() + " clusters");
 
         //cluster
         return result;
@@ -46,7 +46,7 @@ public class DBSCANClusteringStrategy implements ClusteringStrategy {
     public List<Cluster> createClusters(double[][] distanceMatrix, List<Integer> points) {
 
         List<Cluster> result = dbScanMatrix(distanceMatrix, points);
-        LOG.info("Created " + result.size() + "clusters");
+        LOG.info("Created " + result.size() + " clusters");
 
         //cluster
         return result;
@@ -58,7 +58,13 @@ public class DBSCANClusteringStrategy implements ClusteringStrategy {
         boolean[] noise = new boolean[distanceMatrix.length];
         Map<Integer, Long> classifier = new HashMap<>(distanceMatrix.length);
         int clusterCounter = 0;
-        for(Integer i : points){
+        Random random = new Random(System.currentTimeMillis());
+        List<Integer> indices = new ArrayList<>(points);
+        int r;
+//        int i = indices.remove(r);
+        while(!indices.isEmpty()){
+            r = random.nextInt(indices.size());
+            int i = indices.remove(r);
 //        for(int i = distanceMatrix.length - 1; i > 0; i--){
             if(visited[i])
                 continue;
@@ -70,7 +76,7 @@ public class DBSCANClusteringStrategy implements ClusteringStrategy {
                 noise[i] = true;
             }else{
                 Cluster c = new Cluster();
-                expandClusterMatrix(i, epsNeigh, c, visited, classifier, distanceMatrix, points);
+                expandClusterMatrix(i, epsNeigh, c, visited, classifier, distanceMatrix, points, indices);
                 clusters[clusterCounter] = c;
                 clusterCounter++;
             }
@@ -79,8 +85,8 @@ public class DBSCANClusteringStrategy implements ClusteringStrategy {
         for (Cluster cluster1 : clusters) {
             if (cluster1 != null) {
                 result.add(cluster1);
-                for(Integer i : cluster1.getPoints()){
-                    noise[i] = false;
+                for(Integer j : cluster1.getPoints()){
+                    noise[j] = false;
                 }
             } else {
                 break;
@@ -90,9 +96,9 @@ public class DBSCANClusteringStrategy implements ClusteringStrategy {
         //add noisy points to their own cluster;
         Cluster cluster = new Cluster();
         cluster.setName("noise");
-        for(Integer i : points){
-            if(noise[i]){
-                cluster.getPoints().add(i);
+        for(Integer j : points){
+            if(noise[j]){
+                cluster.getPoints().add(j);
             }
         }
         if(cluster.getPoints().size() > 0){
@@ -103,7 +109,7 @@ public class DBSCANClusteringStrategy implements ClusteringStrategy {
 
 
     private void expandClusterMatrix(int id, Queue<Integer> epsNeigh, Cluster c,
-                                     boolean[] visited, Map<Integer, Long> classifier, double[][] distanceMatrix, List<Integer> points) {
+                                     boolean[] visited, Map<Integer, Long> classifier, double[][] distanceMatrix, List<Integer> points, List<Integer> indices) {
 
 
         c.getPoints().add(id);
@@ -115,6 +121,7 @@ public class DBSCANClusteringStrategy implements ClusteringStrategy {
 
             if(!visited[p]){
                 visited[p] = true;
+                indices.remove(indices.indexOf(p));
                 Queue<Integer> newNeigh = getEpsilonNeighborhoodMatrix(distanceMatrix[p], points);
                 if(newNeigh.size() > minPts){
                     epsNeigh = mergeQueues(epsNeigh, newNeigh);

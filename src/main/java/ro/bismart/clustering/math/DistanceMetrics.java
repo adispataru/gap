@@ -10,8 +10,9 @@ public class DistanceMetrics {
     public static final String EUCLIDEAN = "euclidean";
     public static final String STS = "STS";
     public static final String RMSD = "RMSD";
+    public static final String MAPE = "MAPE";
 
-    public double euclidianDistance(TimeSeries t1, TimeSeries t2){
+    public static double euclidianDistance(TimeSeries t1, TimeSeries t2){
         double s = 0;
         int l1 = t1.getData().length;
         int l2 = t2.getData().length;
@@ -27,8 +28,8 @@ public class DistanceMetrics {
             offset2 = diff < 0 ? -1 * diff : 0;
         }
         int range = Math.min(l1-offset1, l2-offset2);
-        Double[] t1Data = t1.getData();
-        Double[] t2Data = t2.getData();
+        double[] t1Data = t1.getData();
+        double[] t2Data = t2.getData();
         for(int i = 0; i < range; i++){
             s += Math.pow(t1Data[i+offset1] - t2Data[i+offset2], 2);
         }
@@ -37,10 +38,72 @@ public class DistanceMetrics {
         return s;
     }
 
-    public double RMSD(TimeSeries t1, TimeSeries t2){
+    public static double RMSD(TimeSeries t1, TimeSeries t2){
         int n = Math.min(t1.getData().length, t2.getData().length);
         double e = euclidianDistance(t1, t2);
         return e/n;
+    }
+
+    public static double MAPE(TimeSeries actual, TimeSeries forecast){
+        double s = 0;
+        int l1 = actual.getData().length;
+        int l2 = forecast.getData().length;
+        int offset1 = 0;
+        int offset2 = 0;
+
+        if(actual.getStart().compareTo(forecast.getStart()) != 0){
+            long timeDiff = forecast.getStart().getTime() - actual.getStart().getTime();
+
+            //assuming they send data at the same interval
+            int diff = Math.toIntExact(timeDiff / actual.getStep());
+            offset1 = diff > 0 ? diff : 0;
+            offset2 = diff < 0 ? -1 * diff : 0;
+        }
+        int range = Math.min(l1-offset1, l2-offset2);
+        double[] t1Data = actual.getData();
+        double[] t2Data = forecast.getData();
+        int zeroes = 0;
+        for(int i = 0; i < range; i++){
+            if(t1Data[i+offset1] != 0) {
+                double r = Math.abs((t1Data[i + offset1] - t2Data[i + offset2]) / t1Data[i + offset1]);
+                s += r;
+            }else{
+                zeroes++;
+            }
+        }
+
+        return s / (range - zeroes);
+    }
+
+    public static double SMAPE(TimeSeries actual, TimeSeries forecast){
+        double s = 0;
+        int l1 = actual.getData().length;
+        int l2 = forecast.getData().length;
+        int offset1 = 0;
+        int offset2 = 0;
+
+        if(actual.getStart().compareTo(forecast.getStart()) != 0){
+            long timeDiff = forecast.getStart().getTime() - actual.getStart().getTime();
+
+            //assuming they send data at the same interval
+            int diff = Math.toIntExact(timeDiff / actual.getStep());
+            offset1 = diff > 0 ? diff : 0;
+            offset2 = diff < 0 ? -1 * diff : 0;
+        }
+        int range = Math.min(l1-offset1, l2-offset2);
+        double[] t1Data = actual.getData();
+        double[] t2Data = forecast.getData();
+        int zeroes = 0;
+        for(int i = 0; i < range; i++){
+            if(t1Data[i+offset1] != 0) {
+                s += Math.abs(t2Data[i + offset2] - t1Data[i + offset1]) /
+                        (Math.abs(t1Data[i + offset1] + t2Data[i + offset2]) / 2);
+            }else{
+                zeroes++;
+            }
+        }
+
+        return s / (range - zeroes);
     }
 
 
@@ -61,8 +124,8 @@ public class DistanceMetrics {
         }
         int range = Math.min(l1-offset1, l2-offset2);
 
-        Double[] t1Data = t1.getData();
-        Double[] t2Data = t2.getData();
+        double[] t1Data = t1.getData();
+        double[] t2Data = t2.getData();
 
         double t1Mean = mean(t1, offset1, range);
         double t2Mean = mean(t2, offset2, range);
@@ -103,8 +166,8 @@ public class DistanceMetrics {
         }
         int range = Math.min(l1-offset1, l2-offset2);
 
-        Double[] t2Data = t2.getData();
-        Double[] t1Data = t1.getData();
+        double[] t2Data = t2.getData();
+        double[] t1Data = t1.getData();
         for(int i = 0; i < range - 1; i++){
             Double dt2 = t2Data[i+1+offset2] - t2Data[i+offset2];
             Double dt1 = t1Data[i+1+offset1] - t1Data[i+offset1];
@@ -117,7 +180,7 @@ public class DistanceMetrics {
 
     private double mean(TimeSeries t, int offset, int length){
         double mu = 0;
-        Double[] td = t.getData();
+        double[] td = t.getData();
         for(int i = offset; i < offset + length; i++){
             mu += td[i];
         }
@@ -130,7 +193,7 @@ public class DistanceMetrics {
         double s = 0;
 //        double mean = mean(t, offset, length);
 
-        Double[] td = t.getData();
+        double[] td = t.getData();
         for(int i = offset; i < offset + length; i++){
             s += Math.pow(td[i] - mean, 2);
         }
@@ -147,6 +210,8 @@ public class DistanceMetrics {
             return STSD(first, second);
         if(RMSD.equals(distanceMeasure))
             return RMSD(first, second);
+        if(MAPE.equals(distanceMeasure))
+            return 100 * MAPE(first, second);
         return 0;
     }
 }

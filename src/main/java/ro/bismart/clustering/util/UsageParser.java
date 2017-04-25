@@ -6,10 +6,7 @@ import java.io.*;
 import java.text.DateFormat;
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
-import java.util.ArrayList;
-import java.util.Date;
-import java.util.List;
-import java.util.Scanner;
+import java.util.*;
 import java.util.concurrent.TimeUnit;
 import java.util.logging.Logger;
 
@@ -19,6 +16,7 @@ import java.util.logging.Logger;
 public class UsageParser {
 
     private static final Logger LOG = Logger.getLogger("UsageParser");
+    private static final String days = "ALL";
 
     public static TimeSeries parseFile(String fileName, String seriesName) {
         File f = new File(fileName);
@@ -42,23 +40,38 @@ public class UsageParser {
                 String[] tokens = line.split(",");
                 DateFormat dateInstance = new SimpleDateFormat("MM/d/yy h:mm");
                 Date date = dateInstance.parse(tokens[1]);
-                if(old == null){
-                    result.setStart(date);
-                    old = date;
-                }else{
-                    interval = date.getTime() - old.getTime();
+                Calendar calendar = Calendar.getInstance();
+                calendar.setTime(date);
+                int i = calendar.get(Calendar.DAY_OF_WEEK);
+                if(!dayAllowed(i)){
+                    continue;
                 }
                 Double val = Double.parseDouble(tokens[2]);
-                if(val.equals(Double.NaN))
-                    val = .0;
+                if(val.equals(Double.NaN)) {
+                    if(values.size() > 0) {
+                        val = values.get(values.size() - 1);
+                    }else continue;
+
+                }else{
+                    if(old == null){
+                        result.setStart(date);
+                        old = date;
+                    }else{
+                        interval = date.getTime() - old.getTime();
+                        old = date;
+                    }
+                }
                 values.add(val);
 
             }
             result.setStep(interval);
             result.setTimeUnit(TimeUnit.MILLISECONDS);
-            Double[] t = new Double[values.size()];
-            result.setData(values.toArray(t));
-            result.setName(seriesName);
+            double[] t = new double[values.size()];
+            for(int i = 0 ; i < values.size(); i++){
+                t[i] = values.get(i);
+            }
+            result.setData(t);
+            result.setName(seriesName + "-" + days);
 
             return result;
 
@@ -74,5 +87,16 @@ public class UsageParser {
         }
 
         return null;
+    }
+
+    private static boolean dayAllowed(int i) {
+        if(days.equals("WEEKDAYS")){
+            return i != Calendar.SATURDAY && i != Calendar.SUNDAY;
+        }else if(days.equals("WEEKENDS")){
+            return i == Calendar.SATURDAY || i == Calendar.SUNDAY;
+        }else if(days.equals("ALL")){
+            return true;
+        }
+        return false;
     }
 }
